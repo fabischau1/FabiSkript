@@ -3,6 +3,14 @@ import sys
 import time
 import random
 import hashlib
+import webbrowser
+import requests
+import shutil
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes
 
 class FabiSkript:
     def __init__(self):
@@ -27,6 +35,28 @@ class FabiSkript:
             'makedir': self.makedir,
             'read': self.read,
             'hash': self.hash,
+            'url': self.url,
+            'down': self.down,
+            'clean': self.clean,
+            'curl': self.curl,
+            'copy': self.copy,
+            'move': self.move,
+            'ren': self.rename,
+            'dirlist': self.listdir,
+            'getsize': self.size,
+            'env': self.env,
+            'zip': self.zip,
+            '#': self.comment,
+            '?': self.comment,
+            'unzip': self.unzip,
+            'netstat': self.netstat,
+            'rboot': self.rboot,
+            'shutdown': self.shutdown,
+            'ipget': self.ipget,
+            'fileclear': self.fileclear,
+            'netipget': self.netipget,
+            'kill': self.kill,
+            'checksing': self.checksing,
             '/ui': self.userinput
         }
         self.functions = {}
@@ -94,12 +124,98 @@ class FabiSkript:
     def import_all(self):
         import os
         import sys
+        
+    def kill(self, image_name):
+        taskk = f'taskkill /f /im {image_name}'
+        os.system(taskk)
 
     def do(self, func_name):
         if func_name in self.functions:
             self.functions[func_name]()
         else:
             print(f"Unknown function: {func_name}")
+    
+    def url(self, url):
+        webbrowser.open(url)
+        
+    def down(self, url1, path):
+        response = requests.get(url1)
+        with open(path, 'wb') as file:
+            file.write(response.content)
+            
+    def clean(self):
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    def comment(self, words):
+        pass
+        
+    def ipget(self):
+        os.system('ipconfig' if os.name == 'nt' else 'ifconfig')
+        
+    def netipget(self):
+        os.system('curl ifconfig.me')
+        
+    def netstat(self):
+        if sys.platform.startswith('win'):
+            os.system('netstat -ano')
+        elif sys.platform.startswith('linux'):
+            os.system('netstat -tulpn')
+            
+    def zip(self, file_paths, zip_file):
+        with zipfile.ZipFile(zip_file, 'w') as zf:
+            for file in file_paths:
+                zf.write(file)
+
+    def unzip(self, zip_file, extract_dir):
+        with zipfile.ZipFile(zip_file, 'r') as zf:
+            zf.extractall(extract_dir)
+            
+    def env(self, *args):
+        if args[0] == 'set':
+            var_name = args[1]
+            var_value = args[2]
+            os.environ[var_name] = var_value
+        elif args[0] == 'get':
+            var_name = args[1]
+            print(os.environ.get(var_name, ''))
+        elif args[0] == 'list':
+            for var, val in os.environ.items():
+                print(f"{var}={val}")
+        else:
+            print("Unknown sub-command for 'env'")
+
+    def size(self, file_path):
+        size_bytes = os.path.getsize(file_path)
+        print(f"Size of {file_path}: {size_bytes} bytes")
+
+    def listdir(self, dir_path):
+        contents = os.listdir(dir_path)
+        for item in contents:
+            print(item)
+
+    def rename(self, old_name, new_name):
+        os.rename(old_name, new_name)
+
+    def move(self, src, dst):
+        shutil.move(src, dst)
+    
+    def shutdown(self, time):
+        c2 = f'shutdown /s /t {time}'
+        os.system(c2)
+        
+    def rboot(self, time):
+        c = f'shutdown /r /t {time}'
+        os.system(c)
+
+    def copy(self, src, dst):
+        shutil.copy(src, dst)
+
+    def curl(self, url):
+        response = requests.get(url)
+        if response.status_code == 200:
+            print(response.text)
+        else:
+            print(f"Failed to fetch URL: {url}. Status code: {response.status_code}")
 
     def create_function(self, func_body):
         def func():
@@ -248,6 +364,44 @@ class FabiSkript:
                 output.append(arg)
         with open(file_path, 'a') as f:
             f.write(' '.join(output) + '\n')
+            
+    def fileclear(self, file_path):
+        with open(file_path, 'w') as f:
+            f.truncate(0)
+        print(f"Cleared contents of {file_path}")
+        
+    def checksing(self, file_path):
+        # Read the file content
+        with open(file_path, 'rb') as file:
+            file_data = file.read()
+
+        # Extract the signer's certificate from the file (assuming PEM format)
+        try:
+            signer_cert = x509.load_pem_x509_certificate(file_data, default_backend())
+        except ValueError as e:
+            print(f"Error loading certificate from file: {e}")
+            return
+
+        # Verify if the signer's certificate is issued by a trusted CA
+        if self.validate_certificate(signer_cert):
+            print(f"{file_path} has a valid signature.")
+        else:
+            print(f"{file_path} does not have a valid signature.")
+
+    def validate_certificate(self, cert):
+        # Example validation: Check if the certificate is issued by a trusted CA
+        # For simplicity, checking if the certificate is self-signed
+        try:
+            cert.public_key().verify(
+                cert.signature,
+                cert.tbs_certificate_bytes,
+                padding.PKCS1v15(),
+                cert.signature_hash_algorithm,
+            )
+            return True
+        except Exception as e:
+            print(f"Validation error: {e}")
+            return False
 
     def makedir(self, dir_path):
         if dir_path.startswith('$'):
