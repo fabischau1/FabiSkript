@@ -21,5 +21,13 @@ if errorlevel 1 (
     echo cryptography is already installed.
 )
 
+python -c "from plyer import notification" > nul 2>&1
+if errorlevel 1 (
+    echo Installing plyer...
+    pip install plyer
+) else (
+    echo plyer is already installed.
+)
+
 echo Installation complete.
 pause
