@@ -1,5 +1,8 @@
 import os
 import sys
+import tkinter as tk
+from tkinter import messagebox
+from plyer import notification
 import time
 import random
 import hashlib
@@ -11,6 +14,9 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
+from datetime import datetime, timedelta
+import platform
+import subprocess
 
 class FabiSkript:
     def __init__(self):
@@ -57,7 +63,34 @@ class FabiSkript:
             'netipget': self.netipget,
             'kill': self.kill,
             'checksing': self.checksing,
-            '/ui': self.userinput
+            '/ui': self.userinput,
+            'randomnum': self.randomnum,
+            'random': self.random_command,
+            'randomvar': self.randomvar,
+            'meminf': self.meminfo,
+            'cpuinf': self.cpuinfo,
+            'sysinf': self.sysinfo,
+            'traceroute': self.traceroute,
+            'ping': self.ping,
+            'fileinf': self.fileinfo,
+            'deletedir': self.deldir,
+            'copydir': self.copydir,
+            'waitto': self.sleep_until,
+            'Time': self.current_time,
+            'Date': self.current_date,
+            'replace': self.replace,
+            'lower': self.lower,
+            'upper': self.upper,
+            'concat': self.concat,
+            'divide': self.divide,
+            'multiply': self.multiply,
+            'subtract': self.subtract,
+            'add': self.add,
+            'msg': self.msg,
+            'appmsg': self.msgapp,
+            'jsonr': self.jsonread,
+            'jsonw': self.jsonwrite,
+            'randomnumvar': self.randomnumvar
         }
         self.functions = {}
         self.variables = {}
@@ -120,14 +153,62 @@ class FabiSkript:
 
     def wait(self, seconds):
         time.sleep(float(seconds))
+        
+    def jsonread(self, file_path):
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            return data
+        except FileNotFoundError:
+            print(f"File not found: {file_path}")
+            return None
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {e}")
+            return None
+
+    def jsonwrite(self, file_path, data):
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(data, f, indent=4)
+        except IOError as e:
+            print(f"Error writing to file: {e}")
 
     def import_all(self):
         import os
         import sys
         
+    def msg(self, *args):
+        root = tk.Tk()
+        root.withdraw()  # Verstecke das Hauptfenster
+
+        if len(args) < 2:
+            print("Usage: msg <type> <text>")
+            root.destroy()
+            return
+
+        msg_type = args[0]
+        text = ' '.join(args[1:])
+
+        if msg_type == 'critical':
+            messagebox.showerror('Critical', text)
+        elif msg_type == 'warning':
+            messagebox.showwarning('Warning', text)
+        elif msg_type == 'question':
+            messagebox.askquestion('Question', text)
+        else:
+            messagebox.showinfo('Info', text)
+        
     def kill(self, image_name):
         taskk = f'taskkill /f /im {image_name}'
         os.system(taskk)
+        
+    def msgapp(self, app, title, message):
+        notification.notify(
+            title=title,
+            message=message,
+            app_name=app,
+            app_icon=None
+        )
 
     def do(self, func_name):
         if func_name in self.functions:
@@ -425,7 +506,129 @@ class FabiSkript:
             print(hash_object.hexdigest())
 
     def userinput(self, *args):
-        pass  # removed this method as it's now handled in the set method
+        pass
+        
+    def randomnum(self, min_val, max_val):
+        random_number = random.randint(int(min_val), int(max_val))
+        print(random_number)
+        return random_number
+
+    def random_command(self, *args):
+        random_choice = random.choice(args)
+        print(random_choice)
+        return random_choice
+
+    def randomvar(self, var_name, *args):
+        random_choice = random.choice(args)
+        self.variables[var_name] = random_choice
+
+    def randomnumvar(self, var_name, min_val, max_val):
+        random_number = random.randint(int(min_val), int(max_val))
+        self.variables[var_name] = str(random_number)
+    
+    def add(self, var_name, *args):
+        result = sum(float(self.variables[arg[1:]]) if arg.startswith('$') else float(arg) for arg in args)
+        self.variables[var_name] = str(result)
+
+    def subtract(self, var_name, *args):
+        result = float(self.variables[args[0][1:]]) if args[0].startswith('$') else float(args[0])
+        for arg in args[1:]:
+            result -= float(self.variables[arg[1:]]) if arg.startswith('$') else float(arg)
+        self.variables[var_name] = str(result)
+        
+    def multiply(self, var_name, *args):
+        result = float(self.variables[args[0][1:]]) if args[0].startswith('$') else float(args[0])
+        for arg in args[1:]:
+            result *= float(self.variables[arg[1:]]) if arg.startswith('$') else float(arg)
+        self.variables[var_name] = str(result)
+
+    def divide(self, var_name, *args):
+        result = float(self.variables[args[0][1:]]) if args[0].startswith('$') else float(args[0])
+        for arg in args[1:]:
+            divisor = float(self.variables[arg[1:]]) if arg.startswith('$') else float(arg)
+            if divisor == 0:
+                print("Error: Division by zero.")
+                return
+            result /= divisor
+        self.variables[var_name] = str(result)
+
+    def concat(self, var_name, *args):
+        result = ''.join(self.variables[arg[1:]] if arg.startswith('$') else arg for arg in args)
+        self.variables[var_name] = result
+
+    def upper(self, var_name, var_to_upper):
+        if var_to_upper.startswith('$'):
+            self.variables[var_name] = self.variables[var_to_upper[1:]].upper()
+        else:
+            self.variables[var_name] = var_to_upper.upper()
+            
+    def lower(self, var_name, var_to_lower):
+        if var_to_lower.startswith('$'):
+            self.variables[var_name] = self.variables[var_to_lower[1:]].lower()
+        else:
+            self.variables[var_name] = var_to_lower.lower()
+
+    def replace(self, var_name, var_to_modify, old, new):
+        if var_to_modify.startswith('$'):
+            self.variables[var_name] = self.variables[var_to_modify[1:]].replace(old, new)
+        else:
+            self.variables[var_name] = var_to_modify.replace(old, new)
+            
+    def current_time(self, var_name):
+        self.variables[var_name] = datetime.now().strftime("%H:%M:%S")
+
+    def current_date(self, var_name):
+        self.variables[var_name] = datetime.now().strftime("%Y-%m-%d")
+
+    def sleep_until(self, time_str):
+        target_time = datetime.strptime(time_str, "%H:%M:%S").time()
+        now = datetime.now()
+        target_datetime = datetime.combine(now.date(), target_time)
+        if target_datetime < now:
+            target_datetime = datetime.combine(now.date() + timedelta(days=1), target_time)
+        time.sleep((target_datetime - now).total_seconds())
+        
+    def copydir(self, src, dst):
+        shutil.copytree(src, dst)
+
+    def deldir(self, dir_path):
+        shutil.rmtree(dir_path)
+
+    def fileinfo(self, file_path):
+        info = os.stat(file_path)
+        print(f"File: {file_path}")
+        print(f"Size: {info.st_size} bytes")
+        print(f"Created: {time.ctime(info.st_ctime)}")
+        print(f"Modified: {time.ctime(info.st_mtime)}")
+        print(f"Accessed: {time.ctime(info.st_atime)}")
+        
+    def ping(self, host):
+        response = subprocess.run(['ping', '-c', '4', host], stdout=subprocess.PIPE)
+        print(response.stdout.decode())
+
+    def traceroute(self, host):
+        response = subprocess.run(['traceroute', host], stdout=subprocess.PIPE)
+        print(response.stdout.decode())
+
+    def sysinfo(self):
+        print("System:", platform.system())
+        print("Node Name:", platform.node())
+        print("Release:", platform.release())
+        print("Version:", platform.version())
+        print("Machine:", platform.machine())
+        print("Processor:", platform.processor())
+
+    def cpuinfo(self):
+        if sys.platform == "win32":
+            os.system("wmic cpu get caption, deviceid, name, numberofcores, maxclockspeed, status")
+        elif sys.platform == "linux":
+            os.system("lscpu")
+
+    def meminfo(self):
+        if sys.platform == "win32":
+            os.system("systeminfo | findstr /C:'Total Physical Memory'")
+        elif sys.platform == "linux":
+            os.system("free -h")
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
