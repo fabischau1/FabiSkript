@@ -331,7 +331,7 @@ class FabiSkript:
     def clean(self):
         os.system('cls' if os.name == 'nt' else 'clear')
     
-    def comment(self, words):
+    def comment(self, *args):
         pass
         
     def ipget(self):
