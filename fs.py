@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives import hashes
 from datetime import datetime, timedelta
 import platform
 import subprocess
+import string
 
 class FabiSkript:
     def __init__(self):
@@ -29,7 +30,6 @@ class FabiSkript:
             'open': self.open,
             'end': self.end,
             'if': self.if_,
-            'else if': self.else_if,
             'else': self.else_,
             'thisis': self.thisis,
             'term': self.term,
@@ -87,9 +87,15 @@ class FabiSkript:
             'subtract': self.subtract,
             'add': self.add,
             'msg': self.msg,
+            'hashvar': self.hashvar,
             'appmsg': self.msgapp,
             'jsonr': self.jsonread,
             'jsonw': self.jsonwrite,
+            'readli': self.readline,
+            'perform': self.perform_operation_on_files,
+            'elif': self.elif_,
+            'checkread': self.checkread,
+            'password': self.generate_password,
             'randomnumvar': self.randomnumvar
         }
         self.functions = {}
@@ -218,7 +224,105 @@ class FabiSkript:
     
     def url(self, url):
         webbrowser.open(url)
+    
+    def generate_password(self, length):
+        try:
+            length = int(length)  # Ensure length is converted to an integer
+            characters = string.ascii_letters + string.digits + string.punctuation
+            password = ''.join(random.choice(characters) for _ in range(length))
+            self.variables['password'] = password
+            print(f"Generated password: {password}")
+        except ValueError:
+            print(f"Error: Length '{length}' is not a valid integer.")
+		
+    def resolve_variable(self, var_name):
+        if var_name.startswith('$'):
+            return self.variables.get(var_name[1:], var_name)  # Resolve variable excluding $
+        return var_name
+
+    def checkread(self, output_variable, var_name, file_path):
+        try:
+            found = False
+            var_name = self.resolve_variable(var_name)
+            with open(file_path, 'r') as file:
+                for line in file:
+                    if var_name in line:
+                        found = True
+                        break
+            if found:
+                self.variables[output_variable] = "1"
+            else:
+                self.variables[output_variable] = "0"
+        except FileNotFoundError:
+            print(f"Error: File '{file_path}' not found.")
+            self.variables[output_variable] = "0"
+        except Exception as e:
+            print(f"Error: {e}")
+            self.variables[output_variable] = "0"
+
+    def perform_operation_on_files(self, directory, operation, *args):
+        if operation not in ['delete', 'open', 'hash']:
+            print(f"Operation '{operation}' not supported.")
+            return
         
+        files = os.listdir(directory)
+        for file_name in files:
+            file_path = os.path.join(directory, file_name)
+            if operation == 'delete':
+                self.delete(file_path)
+            elif operation == 'open':
+                self.open(file_path)
+            elif operation == 'hash':
+                self.hash(file_path)
+
+    def readline(self, var_name, file_path_or_file_name, line_number):
+        try:
+            with open(file_path_or_file_name, 'r') as f:
+                lines = f.readlines()
+                line_number = int(line_number)
+                if 1 <= line_number <= len(lines):
+                    self.variables[var_name] = lines[line_number - 1].strip()
+                else:
+                    print(f"Line number {line_number} is out of range for file {file_path_or_file_name}")
+        except FileNotFoundError:
+            print(f"File not found: {file_path_or_file_name}")
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            
+        
+    def hashvar(self, var_name, file_or_path_or_var):
+        try:
+            if os.path.isfile(file_or_path_or_var):  # Fall: Dateiname oder vollständiger Pfad zur Datei
+                with open(file_or_path_or_var, 'rb') as f:
+                    content = f.read()
+                    hash_object = hashlib.sha256(content)
+                    self.variables[var_name] = hash_object.hexdigest()
+            elif os.path.isabs(file_or_path_or_var):  # Fall: Absoluter Pfad
+                with open(file_or_path_or_var, 'rb') as f:
+                    content = f.read()
+                    hash_object = hashlib.sha256(content)
+                    self.variables[var_name] = hash_object.hexdigest()
+            elif file_or_path_or_var.startswith('$'):  # Fall: Variable
+                var_name_file = file_or_path_or_var[1:]  # Entferne das '$' Zeichen
+                if var_name_file in self.variables and os.path.isfile(self.variables[var_name_file]):
+                    file_path = self.variables[var_name_file]
+                    with open(file_path, 'rb') as f:
+                        content = f.read()
+                        hash_object = hashlib.sha256(content)
+                        self.variables[var_name] = hash_object.hexdigest()
+                else:
+                    print(f"Error: Variable '{var_name_file}' does not exist or does not point to a valid file.")
+                    self.variables[var_name] = ""
+            else:
+                print(f"Error: Invalid file or path '{file_or_path_or_var}'.")
+                self.variables[var_name] = ""
+        except FileNotFoundError:
+            print(f"Error: File '{file_or_path_or_var}' not found.")
+            self.variables[var_name] = ""
+        except Exception as e:
+            print(f"Error: {e}")
+            self.variables[var_name] = ""
+
     def down(self, url1, path):
         response = requests.get(url1)
         with open(path, 'wb') as file:
@@ -318,48 +422,65 @@ class FabiSkript:
 
     def end(self):
         sys.exit(0)
-
+    
     def if_(self, *args):
-        condition = ' '.join(args)
-        if self.evaluate_condition(condition):
-            self.i += 1
-            while self.i < len(self.lines) and self.lines[self.i].strip() not in ('else', 'else if', 'end'):
-                self.execute_line(self.lines[self.i].strip())
-                self.i += 1
-            if self.i < len(self.lines) and self.lines[self.i].strip() == 'else':
-                while self.i < len(self.lines) and self.lines[self.i].strip() != 'end':
-                    self.i += 1
+        condition = ' '.join(args)  # Die Bedingung aus den Argumenten erstellen
+        if self.evaluate_condition(condition):  # Überprüfen, ob die Bedingung wahr ist
+            self.i += 1  # Zur nächsten Zeile wechseln
+            while self.i < len(self.lines):
+                line = self.lines[self.i].strip()
+                if line.startswith('elif '):
+                    break  # Wenn ein elif gefunden wird, wird die Schleife beendet
+                elif line == 'else' or line == 'end':
+                    break  # Wenn else oder end gefunden wird, wird die Schleife beendet
+                self.execute_line(line)  # Die aktuelle Zeile ausführen
+                self.i += 1  # Zur nächsten Zeile wechseln
+            while self.i < len(self.lines):
+                line = self.lines[self.i].strip()
+                if line == 'end':
+                    break  # Wenn end gefunden wird, wird die Schleife beendet
+                self.i += 1  # Zur nächsten Zeile wechseln
         else:
-            while self.i < len(self.lines) and self.lines[self.i].strip() not in ('else', 'else if', 'end'):
-                self.i += 1
-            if self.i < len(self.lines) and self.lines[self.i].strip() == 'else':
-                self.i += 1
-                while self.i < len(self.lines) and self.lines[self.i].strip() != 'end':
-                    self.execute_line(self.lines[self.i].strip())
-                    self.i += 1
-
-    def else_(self, *args):
-        self.i += 1
-        while self.i < len(self.lines) and self.lines[self.i].strip() != 'end':
-            self.execute_line(self.lines[self.i].strip())
-            self.i += 1
-
-    def else_if(self, *args):
-        condition = ' '.join(args)
-        if not self.evaluate_condition(condition):
-            while self.i < len(self.lines) and self.lines[self.i].strip() not in ('else', 'else if', 'end'):
-                self.i += 1
-            if self.i < len(self.lines) and self.lines[self.i].strip() == 'else':
-                self.i += 1
-                while self.i < len(self.lines) and self.lines[self.i].strip() != 'end':
-                    self.execute_line(self.lines[self.i].strip())
-                    self.i += 1
+            while self.i < len(self.lines):
+                line = self.lines[self.i].strip()
+                if line.startswith('elif '):
+                    self.elif_(line[5:].strip())  # Die elif Bedingung ausführen
+                    break
+                elif line == 'else':
+                    self.else_()  # Die else Methode aufrufen
+                    break
+                elif line == 'end':
+                    break
+                self.i += 1  # Zur nächsten Zeile wechseln
+    
+    def elif_(self, condition):
+        if self.evaluate_condition(condition):  # Überprüfen, ob die Bedingung wahr ist
+            self.i += 1  # Zur nächsten Zeile wechseln
+            while self.i < len(self.lines):
+                line = self.lines[self.i].strip()
+                if line == 'end' or line == 'else':
+                    break  # Wenn end oder else gefunden wird, wird die Schleife beendet
+                self.execute_line(line)  # Die aktuelle Zeile ausführen
+                self.i += 1  # Zur nächsten Zeile wechseln
         else:
-            self.i += 1
-            while self.i < len(self.lines) and self.lines[self.i].strip() != 'end':
-                self.execute_line(self.lines[self.i].strip())
-                self.i += 1
-
+            while self.i < len(self.lines):
+                line = self.lines[self.i].strip()
+                if line == 'else':
+                    self.else_()  # Die else Methode aufrufen
+                    break
+                elif line == 'end':
+                    break
+                self.i += 1  # Zur nächsten Zeile wechseln
+    
+    def else_(self):
+        self.i += 1  # Zur nächsten Zeile wechseln
+        while self.i < len(self.lines):
+            line = self.lines[self.i].strip()
+            if line == 'end':
+                break  # Wenn end gefunden wird, wird die Schleife beendet
+            self.execute_line(line)  # Die aktuelle Zeile ausführen
+            self.i += 1  # Zur nächsten Zeile wechseln
+            
     def thisis(self, var_name, value):
         self.variables[var_name] = value
 
