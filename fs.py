@@ -96,10 +96,20 @@ class FabiSkript:
             'elif': self.elif_,
             'checkread': self.checkread,
             'password': self.generate_password,
+            'uinbox': self.uinbox,
+            'runuinbox': self.runuinbox,
+            'uinsay': self.uinsay,
+            'uinbutten': self.uinbutten,
+            'uinscale': self.uinscale,
+            'uinlist': self.uinlist,
+            'uinradio': self.uinradio,
+            'uincheck': self.uincheck,
+            'uinenter': self.uinenter,
             'randomnumvar': self.randomnumvar
         }
         self.functions = {}
         self.variables = {}
+        self.root = None
         self.checkpoints = {}
         self.lines = []
         self.i = 0
@@ -453,14 +463,22 @@ class FabiSkript:
                     break
                 self.i += 1  # Zur nächsten Zeile wechseln
     
-    def elif_(self, condition):
+    def elif_(self, *args):
+        condition = ' '.join(args)  # Die Bedingung aus den Argumenten erstellen
         if self.evaluate_condition(condition):  # Überprüfen, ob die Bedingung wahr ist
             self.i += 1  # Zur nächsten Zeile wechseln
             while self.i < len(self.lines):
                 line = self.lines[self.i].strip()
-                if line == 'end' or line == 'else':
-                    break  # Wenn end oder else gefunden wird, wird die Schleife beendet
+                if line.startswith('elif '):
+                    break  # Wenn ein elif gefunden wird, wird die Schleife beendet
+                elif line == 'else' or line == 'end':
+                    break  # Wenn else oder end gefunden wird, wird die Schleife beendet
                 self.execute_line(line)  # Die aktuelle Zeile ausführen
+                self.i += 1  # Zur nächsten Zeile wechseln
+            while self.i < len(self.lines):
+                line = self.lines[self.i].strip()
+                if line == 'end':
+                    break  # Wenn end gefunden wird, wird die Schleife beendet
                 self.i += 1  # Zur nächsten Zeile wechseln
         else:
             while self.i < len(self.lines):
@@ -629,6 +647,52 @@ class FabiSkript:
     def userinput(self, *args):
         pass
         
+    def uinbox(self, *args):
+        if self.root is None:
+            self.root = tk.Tk()
+        title = " ".join(map(str, args))
+        self.root.title(title)
+        
+    def uinsay(self, name, *args):
+        test = " ".join(map(str, args))
+        name = tk.Label(self.root, text=test)
+        name.pack()
+        
+    def uinbutten(self, name, command, *args):
+        teste = " ".join(map(str, args))
+        name = tk.Button(self.root, text=teste, command=command)
+        name.pack()
+        
+    def runuinbox(self):
+        self.root.mainloop()
+        
+    def uinenter(self, name):
+        name = tk.Entry(self.root)
+        name.pack()
+        
+    def uinsay(self, name, *args):
+        test = " ".join(map(str, args))
+        name = tk.Label(self.root, text=test)
+        name.pack()
+        
+    def uincheck(self, name, *args):
+        test = " ".join(map(str, args))
+        name = tk.Checkbutton(self.root, text=test)
+        name.pack()
+        
+    def uinradio(self, name, *args):
+        test = " ".join(map(str, args))
+        name = tk.Radiobutton(self.root, text=test)
+        name.pack()
+        
+    def uinlist(self, name):
+        name = tk.Listbox(self.root)
+        name.pack()
+    
+    def uinscale(self, name):
+        name = tk.Scale(self.root)
+        name.pack()
+    
     def randomnum(self, min_val, max_val):
         random_number = random.randint(int(min_val), int(max_val))
         print(random_number)
