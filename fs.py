@@ -2,6 +2,8 @@ import os
 import sys
 import tkinter as tk
 from tkinter import messagebox
+import tkinter.ttk as ttk
+import threading
 from plyer import notification
 import time
 import random
@@ -105,6 +107,8 @@ class FabiSkript:
             'uinradio': self.uinradio,
             'uincheck': self.uincheck,
             'uinenter': self.uinenter,
+            'progressbar': self.progressbar,
+            'compare': self.compare,
             'randomnumvar': self.randomnumvar
         }
         self.functions = {}
@@ -697,11 +701,82 @@ class FabiSkript:
         random_number = random.randint(int(min_val), int(max_val))
         print(random_number)
         return random_number
+        
+    def progressbar(self, size, speed, *args):
+        title = " ".join(map(str, args))
+        class ProgressBar(tk.Tk):
+            def __init__(self):
+                super().__init__()
+                self.title(title)
+                self.geometry(size)
+                self.progress = tk.DoubleVar()
+                self.progress_bar = ttk.Progressbar(self, variable=self.progress, maximum=100)
+                self.progress_bar.pack(pady=20)
+                self.button = tk.Button(self, text="Stop", command=self.stop_thread)
+                self.button.pack(pady=20)
+                self._stop_event = threading.Event()
+                self.thread = None
+                self.speed = float(speed)
+                self.start_thread()
+            def update_progress(self, value):
+                self.progress.set(value)
+            def start_thread(self):
+                if self.thread is None or not self.thread.is_alive():
+                    self._stop_event.clear()
+                    self.thread = threading.Thread(target=self.update_progress_slowly)
+                    self.thread.start()
+            def update_progress_slowly(self):
+
+                for i in range(101):
+                    if self._stop_event.is_set():
+                        break
+
+                    time.sleep(self.speed)
+                    self.after(0, self.update_progress, i)
+                self.button.config(state=tk.DISABLED)
+            def stop_thread(self):
+                if self.thread is not None and self.thread.is_alive():
+                    self._stop_event.set()
+                    self.thread.join()
+                    self.thread = None
+                    self.button.config(state=tk.NORMAL)
+        if __name__ == "__main__":
+            app = ProgressBar()
+            app.mainloop()
 
     def random_command(self, *args):
         random_choice = random.choice(args)
         print(random_choice)
         return random_choice
+        
+    def compare(self, fileno1, fileno2, fileno3):
+        def compare_files(file1_path, file2_path, output_path):
+            with open(file1_path, 'r') as file1, open(file2_path, 'r') as file2:
+                file1_lines = file1.readlines()
+                file2_lines = file2.readlines()
+
+            differences = []
+
+            max_lines = max(len(file1_lines), len(file2_lines))
+
+            for i in range(max_lines):
+                line1 = file1_lines[i].strip() if i < len(file1_lines) else ''
+                line2 = file2_lines[i].strip() if i < len(file2_lines) else ''
+
+                if line1 != line2:
+                    differences.append(f"Line {i + 1}: File 1: '{line1}' <> File 2: '{line2}'")
+
+            with open(output_path, 'w') as output_file:
+                if differences:
+                    output_file.write("\n".join(differences))
+                else:
+                    output_file.write("The files are the same.")
+
+        if __name__ == "__main__":
+            file1_path = fileno1
+            file2_path = fileno2
+            output_path = fileno3
+            compare_files(file1_path, file2_path, output_path)
 
     def randomvar(self, var_name, *args):
         random_choice = random.choice(args)
