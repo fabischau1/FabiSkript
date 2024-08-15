@@ -109,6 +109,8 @@ class FabiSkript:
             'uinenter': self.uinenter,
             'progressbar': self.progressbar,
             'compare': self.compare,
+            'winshort': self.shortcutnoico,
+            'winshortico': self.shortcutico,
             'randomnumvar': self.randomnumvar
         }
         self.functions = {}
@@ -889,7 +891,13 @@ class FabiSkript:
             os.system("systeminfo | findstr /C:'Total Physical Memory'")
         elif sys.platform == "linux":
             os.system("free -h")
-
+            
+    def shortcutnoico(self, name, app):
+        os.system(f'powershell "$s=(New-Object -COM WScript.Shell).CreateShortcut(\'%USERPROFILE%\\Desktop\\{name}.lnk\');$s.TargetPath=\'{app}\';$s.Save()"')
+        
+    def shortcutico(self, name, icon, app):
+        os.system(f'powershell "$s=(New-Object -COM WScript.Shell).CreateShortcut(\'%USERPROFILE%\\Desktop\\{name}.lnk\');$s.TargetPath=\'{app}\';$s.IconLocation=\'{icon}\';$s.Save()"')
+        
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage: python fabiskript.py <script_file.fs>")
